@@ -3,10 +3,13 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/common/ERC2981.sol";
 
-contract Marketplace is ReentrancyGuard, Ownable {
+contract Marketplace is ReentrancyGuard, Ownable, ERC2981 {
+
+    uint96 private default_royalityFee = 20;   // set royality to 2% by default
 
     using Counters for Counters.Counter;
     Counters.Counter private marketplaceIds;
@@ -32,10 +35,20 @@ contract Marketplace is ReentrancyGuard, Ownable {
         uint listPrice
     );
 
+    constructor(){
+        _setDefaultRoyalty(address(this), default_royalityFee);
+    }
+
+    function setDefaultRoyalityFee(uint96  _default_royalityFee) external onlyOwner{
+        _setDefaultRoyalty(address(this), _default_royalityFee);
+    }
+
     function createListing(
         uint tokenId,
         address nftAddress,
-        uint price
+        uint price,
+        bool isRoyalty,
+        uint96 royaltyFee
     ) public nonReentrant {
         require(price > 0, "List price must be 1 wei >=");
         marketplaceIds.increment();
@@ -48,6 +61,9 @@ contract Marketplace is ReentrancyGuard, Ownable {
             payable(address(0)),
             price
         );
+        if(isRoyalty){
+            _setTokenRoyalty(tokenId, msg.sender, royaltyFee);
+        }
         IERC721(nftAddress).transferFrom(msg.sender, address(this), tokenId);
         emit ListingCreated(
             marketplaceItemId,
@@ -70,7 +86,10 @@ contract Marketplace is ReentrancyGuard, Ownable {
             "Value sent does not meet list price for NFT"
         );
         uint tokenId = marketplaceIdToListingItem[marketplaceItemId].tokenId;
-        marketplaceIdToListingItem[marketplaceItemId].seller.transfer(msg.value);
+        (address creator, uint256 royaltyFee) = royaltyInfo(tokenId, price);
+        uint256 actutal = msg.value - royaltyFee;
+        marketplaceIdToListingItem[marketplaceItemId].seller.transfer(actutal);
+        payable(creator).transfer(royaltyFee);
         IERC721(nftAddress).transferFrom(address(this), msg.sender, tokenId);
         marketplaceIdToListingItem[marketplaceItemId].owner = payable(msg.sender);
         totalMarketplaceItemsSold.increment();

@@ -28,7 +28,7 @@ describe("Marketplace", function () {
 
   it("Should list an NFT onto the marketplace", async function () {
     await nft.approve(marketplaceAddress, 1);
-    await nftMarketplace.createListing(1, nftAddress, listPrice); //0.01 ETH
+    await nftMarketplace.createListing(1, nftAddress, listPrice, true, 10); //0.01 ETH
   });
 
   it("Should sell an active NFT listed on the marketplace ", async function () {
@@ -46,7 +46,7 @@ describe("Marketplace", function () {
   it("Test a market sale that does not send sufficient funds", async function () {
     await nft.safeMint(acc1.address, "bbbbbbbbbbbbb");
     await nft.approve(marketplaceAddress, 2);
-    await nftMarketplace.createListing(2, nftAddress, listPrice);
+    await nftMarketplace.createListing(2, nftAddress, listPrice, false, 0);
 
     await expect(
       nftMarketplace.connect(acc2).buyListing(2, nftAddress, { value:  ethers.utils.parseEther("0.02", "ether")})
